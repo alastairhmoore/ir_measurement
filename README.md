@@ -8,6 +8,6 @@ Download and compile the source for `playrec` from https://github.com/PlayrecFor
 # Getting started
 Open `demo_script.m` and have a look at the basic commands
 
-1. `setup.m` does some path configuration and allows you so set the soundcard
+1. `setup.m` does some path configuration and allows you to set the soundcard
 2. `test_signals.m` generates a tone to check the levels
-3. `getSysIR.m` is the main function by which impulse response measurments are made
+3. `getSysIR.m` is the main function by which impulse response measurements are made

@@ -76,7 +76,7 @@ if show_levels
     set(gca,'yticklabel',[0:5:-noise_floor]+noise_floor);
     xlim([0 length(max_lev)+1]);
     set(gca,'xtick',[1:length(max_lev)]);
-    set(gca,'xticklabel',num2str(recChan));
+    set(gca,'xticklabel',num2cell(recChan))
     xlabel('Input channel')
     ylabel('Maximum signal level [dBFS]')
 end

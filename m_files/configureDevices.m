@@ -59,26 +59,69 @@ handles.output = 0;
 % Set background colors properly
 set(findobj(handles.figure1,'type','uicontrol'),'BackgroundColor',get(handles.figure1,'Color'))
 
-%get the directory where this mfile is
-[handles.dir_path, filename, ext] = fileparts(which(mfilename));
 
 handles.all_sample_rates = [8000,16000,20000,32000,44100,48000,96000,192000]';
+handles.default_sample_rate = 48000;
 
+%get the directory where this mfile is
+dir_path = fileparts(which(mfilename));
+handles.save_path = fullfile(dir_path, 'DeviceConfig.mat');
 
 %TODO: Check for previously saved config file and prepopulate
+p = inputParser;
+p.FunctionName = 'configureDevices';
+%p.addParameter('save_path',save_path,@(x)validateattributes(x,{'string'},{'scalartext'}));
+p.addOptional('load_path',handles.save_path);
+if numel(varargin) > 0
+    input_args = varargin{1}; % hack because we had to wrap inputs in a cell
+else
+    input_args = {};
+end
+parse(p, input_args{:});
+handles.load_path = p.Results.load_path;
+[parentdir,fname,ext] = fileparts(handles.load_path);
+if isempty(ext) || ~stcmp(ext,'mat')
+    handles.load_path = [handles.load_path '.mat'];
+end
 
+%%
+handles.savedDeviceConfig = []; 
+fprintf('Looking for saved config file at:\n%s\n\n',handles.load_path);
+if exist(handles.load_path,'file')
+    savedDeviceConfig = load(handles.load_path,'deviceConfig')
+    handles.savedDeviceConfig = savedDeviceConfig.deviceConfig;
+end
 
 %populate the api menu - only happens once
 s = playrec('getDevices');
 available_apis = unique({s.hostAPI});
-%TODO: apply preferred ordering of apis on windows
+%TODO?: apply preferred ordering of apis on windows
 set(handles.audio_api_popupmenu,'string',available_apis);
-set(handles.audio_api_popupmenu,'value',1); %TODO: choose this from previously saved config
+set(handles.audio_api_popupmenu,'value',1);
+
+% if saved config is available, get the parameter and match it with
+% available
+if ~isempty(handles.savedDeviceConfig)
+    if ~select_popupmenu_entry(handles.audio_api_popupmenu,...
+                                   get_saved_data(handles,'audio_api'))
+        warning('couldn''t restore audio api - ignoring saved config')
+        handles.savedConfig = [];
+    end
+end
+
+% keep track of gui state
+handles.is_initialised = struct('devices',0,'device_settings',0);
+
 % Update handles structure
 guidata(hObject, handles);
 
 %update the list of device options, other ui elements will update is due course
 populate_device_menus(hObject,handles)
+
+handles = guidata(hObject);
+
+
+
 
 
 % UIWAIT makes configureDevices wait for user response (see UIRESUME)
@@ -117,28 +160,25 @@ deviceConfig.devices = handles.devices;
 
 deviceConfig.inputDeviceID = handles.s_in.deviceID;
 deviceConfig.outputDeviceID = handles.s_out.deviceID;
-
-i_fs = get(handles.sample_rate_popupmenu,'Value');
-string_cell = get(handles.sample_rate_popupmenu,'String');
-deviceConfig.fs = str2num(string_cell{i_fs});
-
+deviceConfig.fs = str2double(get_popupmenu_selected_string(...
+                    handles.sample_rate_popupmenu));
 deviceConfig.loopback = get(handles.loopback_checkbox, 'Value');
 
 if deviceConfig.loopback == 1
-    chan_in = get(handles.loopback_in_chan_popupmenu,'Value');
-    string_cell = get(handles.loopback_in_chan_popupmenu,'String');
-    deviceConfig.loopback_in_chan = str2num(cell2mat(string_cell(chan_in)));
-
-    chan_out = get(handles.loopback_out_chan_popupmenu,'Value');
-    string_cell = get(handles.loopback_out_chan_popupmenu,'String');
-    deviceConfig.loopback_out_chan = str2num(cell2mat(string_cell(chan_out)));
+    deviceConfig.loopback_in_chan = str2double(get_popupmenu_selected_string(...
+                    handles.loopback_in_chan_popupmenu));
+    deviceConfig.loopback_out_chan = str2double(get_popupmenu_selected_string(...
+                    handles.loopback_out_chan_popupmenu));
 else
     deviceConfig.loopback_in_chan = [];
     deviceConfig.loopback_out_chan = [];
 end
 
 
-save([handles.dir_path '/DeviceConfig.mat'], 'deviceConfig')
+save(handles.save_path, 'deviceConfig')
+if ~isequal(handles.load_path, handles.save_path)
+    save(handles.load_path, 'deviceConfig')
+end
 handles.output = deviceConfig.fs;
 guidata(hObject, handles);
 %close
@@ -249,10 +289,32 @@ api = api_list{get(handles.audio_api_popupmenu,'value')};
 handles.od = od;
 handles.id = id;
 handles.devices = s;
-set(handles.in_device_id_popupmenu, 'String',cellstr(num2str(id)));
-set(handles.out_device_id_popupmenu, 'String',cellstr(num2str(od)));
+bool_array_input_device = ismember([s(:).deviceID],id);
+bool_array_output_device = ismember([s(:).deviceID],od);
+set(handles.in_device_id_popupmenu, 'String',{s(bool_array_input_device).name});
+set(handles.out_device_id_popupmenu, 'String',{s(bool_array_output_device).name});
 set(handles.in_device_id_popupmenu,'Value',1);
 set(handles.out_device_id_popupmenu,'Value',1);
+
+% pre-select saved value
+if ~handles.is_initialised.devices
+    if ~isempty(handles.savedDeviceConfig)
+        if ~select_popupmenu_entry(handles.in_device_id_popupmenu,...
+                                   get_saved_data(handles,'input_device_name'))
+            warning('couldn''t restore input device - ignoring saved config')
+            handles.savedConfig = [];
+        end
+    end
+    if ~isempty(handles.savedDeviceConfig)
+        if ~select_popupmenu_entry(handles.out_device_id_popupmenu,...
+                                   get_saved_data(handles,'output_device_name'))
+            warning('couldn''t restore output device - ignoring saved config')
+            handles.savedConfig = [];
+        end
+    end
+end
+handles.is_initialised.devices = 1;
+
 guidata(hObject, handles);
 update_view(hObject, handles)
 
@@ -294,15 +356,46 @@ populate_sample_rate_and_loopback_popupmenus(hObject, handles );
 function populate_sample_rate_and_loopback_popupmenus(hObject, handles)
 
 %% sample rates
+% try to retain the current value
+if handles.is_initialised.device_settings
+    current_sample_rate = str2double(get_popupmenu_selected_string(handles.sample_rate_popupmenu));
+end
+
 % no list of available sample rates so need to try each one in turn
 sample_rates = test_playrec_available_sample_rates(handles.all_sample_rates,...
                                              handles.s_out.deviceID,...
                                              handles.s_in.deviceID);
 set(handles.sample_rate_popupmenu,'String',cellstr(num2str(sort(sample_rates))));
+
+% sequentially preselect popup menu using
+% 1. fail safe
+% 2. default
+% 3. saved value
 set(handles.sample_rate_popupmenu,'Value',1);
 
+select_popupmenu_entry(handles.sample_rate_popupmenu,...
+                       handles.default_sample_rate);
+
+if handles.is_initialised.device_settings
+    select_popupmenu_entry(handles.sample_rate_popupmenu,...
+                           current_sample_rate);
+elseif ~isempty(handles.savedDeviceConfig)
+    if ~select_popupmenu_entry(handles.sample_rate_popupmenu,...
+                               get_saved_data(handles,'sample_rate'))
+        warning('couldn''t restore sample rate - ignoring saved config')
+        handles.savedConfig = [];
+    end
+end
+
+
+
 %% loopback menus
-%if get(handles.loopback_checkbox, 'Value') == 1
+if ~isempty(handles.savedDeviceConfig)  && ~handles.is_initialised.device_settings
+    set(handles.loopback_checkbox,'value',...
+        get_saved_data(handles,'do_loopback'));
+end 
+
+
     %get channel numbers for output and input devices and put into loopback
     %popupmenus
     
@@ -313,8 +406,21 @@ set(handles.sample_rate_popupmenu,'Value',1);
         for i= 1:max_chan
             loop_out_list(i) = num2cell(i);
         end
+        current_value = str2double(get_popupmenu_selected_string(handles.loopback_out_chan_popupmenu));
+        set(handles.loopback_out_chan_popupmenu, 'Value', 1);
         set(handles.loopback_out_chan_popupmenu, 'String', loop_out_list);
         set(handles.loopback_out_chan_popupmenu, 'Enable','on');
+        % restore the previous value
+        select_popupmenu_entry(handles.loopback_out_chan_popupmenu,...
+                               current_value);
+                          
+        if ~isempty(handles.savedDeviceConfig) && ~handles.is_initialised.device_settings && handles.savedDeviceConfig.loopback
+            if ~select_popupmenu_entry(handles.loopback_out_chan_popupmenu,...
+                                   get_saved_data(handles,'loopback_out_chan'))           
+                warning('couldn''t restore loopback_out_chan_popupmenu - ignoring saved config')
+                handles.savedConfig = [];
+            end
+        end       
     else
         set(handles.loopback_out_chan_popupmenu, 'Enable','off');
     end
@@ -322,16 +428,30 @@ set(handles.sample_rate_popupmenu,'Value',1);
     %in
     max_chan = handles.s_in.inputChans;
     if max_chan > 0
-        loop_out_list = {};
+        loop_in_list = {};
         for i= 1:max_chan
             loop_in_list(i) = num2cell(i);
         end
+        current_value = str2double(get_popupmenu_selected_string(handles.loopback_in_chan_popupmenu));
+        set(handles.loopback_in_chan_popupmenu, 'Value', 1);
         set(handles.loopback_in_chan_popupmenu, 'String', loop_in_list);
         set(handles.loopback_in_chan_popupmenu, 'Enable','on');
+        % restore the previous value
+        select_popupmenu_entry(handles.loopback_in_chan_popupmenu,...
+                               current_value);
+        if ~isempty(handles.savedDeviceConfig) && ~handles.is_initialised.device_settings && handles.savedDeviceConfig.loopback
+            if ~select_popupmenu_entry(handles.loopback_in_chan_popupmenu,...
+                                   get_saved_data(handles,'loopback_in_chan'))           
+                warning('couldn''t restore loopback_in_chan_popupmenu - ignoring saved config')
+                handles.savedConfig = [];
+            end
+        end
     else
         set(handles.loopback_in_chan_popupmenu, 'Enable','off');
     end
-%end
+
+
+handles.is_initialised.device_settings = 1;
 
 guidata(hObject, handles);                                    
 
@@ -399,3 +519,59 @@ function figure1_CloseRequestFcn(hObject, eventdata, handles)
 
 % Hint: delete(hObject) closes the figure
 uiresume(handles.figure1)
+
+
+
+function[retvalue] = get_saved_data(handles,param_name)
+% provide a unified interface to extract data from the saved config
+savedConfig = handles.savedDeviceConfig;
+
+%% find the input/output devices
+% get list of all device ids in the saved structure
+saved_deviceIDs = [savedConfig.devices(:).deviceID];
+
+device_index = find(savedConfig.inputDeviceID == saved_deviceIDs);
+input_device = savedConfig.devices(device_index);
+
+device_index = find(savedConfig.outputDeviceID == saved_deviceIDs);
+output_device = savedConfig.devices(device_index);
+
+switch param_name
+    case 'audio_api'
+        retvalue = unique({input_device.hostAPI,output_device.hostAPI});
+        if numel(retvalue)~=1
+            retvalue = nan;
+        end
+    case 'sample_rate'
+        retvalue = savedConfig.fs;
+    case 'input_device_name'
+        retvalue = input_device.name;
+    case 'output_device_name'
+        retvalue = output_device.name;
+    case 'do_loopback'
+        retvalue = savedConfig.loopback;
+    case 'loopback_out_chan'
+        retvalue = savedConfig.loopback_out_chan;
+    case 'loopback_in_chan'
+        retvalue = savedConfig.loopback_in_chan;
+    otherwise
+        error('Unknown parameter')
+end
+
+function[selected_string] = get_popupmenu_selected_string(hObject)
+contents = cellstr(get(hObject,'String'));
+selected_string = contents{get(hObject,'Value')};
+
+function[success] = select_popupmenu_entry(hObject,value)
+success = 0;
+menu_contents = get(hObject,'String');
+if isnumeric(value)
+    popup_index = find(value == str2double(menu_contents));
+else
+    popup_index = find(strcmp(value,menu_contents));
+end
+if numel(popup_index)==1
+    set(hObject,'Value',popup_index);
+    success = 1;
+end
+

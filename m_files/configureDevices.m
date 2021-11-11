@@ -71,7 +71,8 @@ handles.save_path = fullfile(dir_path, 'DeviceConfig.mat');
 p = inputParser;
 p.FunctionName = 'configureDevices';
 %p.addParameter('save_path',save_path,@(x)validateattributes(x,{'string'},{'scalartext'}));
-p.addOptional('load_path',handles.save_path);
+%p.addOptional('load_path',handles.save_path);
+p.addOptional('load_path',handles.save_path,@(s)ischar(s));
 if numel(varargin) > 0
     input_args = varargin{1}; % hack because we had to wrap inputs in a cell
 else
@@ -80,7 +81,7 @@ end
 parse(p, input_args{:});
 handles.load_path = p.Results.load_path;
 [parentdir,fname,ext] = fileparts(handles.load_path);
-if isempty(ext) || ~stcmp(ext,'mat')
+if isempty(ext) || ~strcmp(ext,'mat')
     handles.load_path = [handles.load_path '.mat'];
 end
 

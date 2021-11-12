@@ -65,22 +65,22 @@ set(handles.figure1,'WindowStyle','modal')
 
 
 %get the current device configurations
-if exist('m_files/DeviceConfig.mat', 'file')
-    load('m_files/DeviceConfig.mat');
-else
-    error('Could not find "DeviceConfig.mat". Please run "configureDevices" before "configureMeasurements"')
-    
-end
-handles.deviceConfig = deviceConfig;
+handles.deviceConfig = getAudioDeviceIOSettings();
 
 %fill available channel info into the relevant popdown menus
 %we are simply passing the number of ouput and input channels available
 fillChannelInfo(handles);
 
 
-%get the availables signals
-if exist('m_files/availableSignals.mat', 'file')
-    load('m_files/availableSignals.mat');
+% set the paths to required files
+parent_dir = fileparts(mfilename());
+handles.available_signals_file = fullfile(parent_dir,'availableSignals.mat');
+handles.measurement_config_file = fullfile(parent_dir,'MeasurementConfig.mat');
+
+
+% get the available signals
+if exist(handles.available_signals_file, 'file')
+    load(handles.available_signals_file,'availableSignals');
 else
     error('No signal data available')
 end
@@ -102,8 +102,8 @@ updatePhonesSignalParameters(handles.availableSignals(1).nOptions,...
 
 %check for MeasurmentConfig.mat - doesn't matter if it's not
 %if there read it in 
-if exist('m_files/MeasurementConfig.mat','file')
-    load('m_files/MeasurementConfig.mat')
+if exist(handles.measurement_config_file,'file')
+    load(handles.measurement_config_file,'measurementConfig')
     handles.measurementConfig = measurementConfig;
     
     %set sampling frequency
@@ -127,7 +127,7 @@ if exist('m_files/MeasurementConfig.mat','file')
     i = 1;
     hrtf_match = 0;
     phones_match = 0;
-    while ((hrtf_match == 0) | (phones_match == 0)) & i-1 < length(handles.availableSignals)
+    while ((hrtf_match == 0) || (phones_match == 0)) && i-1 < length(handles.availableSignals)
         
         if isequal(measurementConfig.hrtfFunctionHandle,handles.availableSignals(i).functionHandle)
             hrtf_match = 1;
@@ -638,7 +638,7 @@ phones_index = get(handles.phones_signal_popupmenu, 'Value');
 measurementConfig.phonesFunctionHandle = handles.availableSignals(phones_index).functionHandle;
 measurementConfig.phonesOptions = getPhonesOptionsData(handles);    %this takes data directly from boxes and returns cell array
     
-save('M_FILES/MeasurementConfig.mat', 'measurementConfig');
+save(handles.measurement_config_file, 'measurementConfig');
 
 
 handles.output = measurementConfig;

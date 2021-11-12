@@ -81,7 +81,7 @@ end
 parse(p, input_args{:});
 handles.load_path = p.Results.load_path;
 [parentdir,fname,ext] = fileparts(handles.load_path);
-if isempty(ext) || ~strcmp(ext,'mat')
+if isempty(ext) || ~strcmp(ext,'.mat')
     handles.load_path = [handles.load_path '.mat'];
 end
 

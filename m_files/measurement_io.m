@@ -121,7 +121,11 @@ if loopback
     %use the loopback channel to determine the delay by finding the maximum
     %value of the impulse response measured using mls signal
     loopback_in = recSignal(:,end);
-    if max(abs(loopback_in)) < 0.01; warning('Loopback signal in is < -20 dBFS... turn up the input gain');end
+    if max(abs(loopback_in)) < 0.01;
+        warning('Loopback signal in is < -20 dBFS... turn up the input gain');
+        fprintf('Press return to continue')
+        pause()
+    end
     loopback_ir = mls('process',{loopback_mls_order,loopback_reps,1,loopback_reps,0},loopback_in);   
     %plotvstime(loopback_ir);
     [max_val indices] = max(abs(loopback_ir));
@@ -130,7 +134,7 @@ if loopback
     
     if delay < 1
         warning('measurement_io: delay is negative, set to zero!')
-        keboard
+        keyboard
     end
     
     %crop the delay from the start and return recorded samples (but not the

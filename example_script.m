@@ -3,9 +3,10 @@
 %and read if present
 
 % configure all the paths and returns the system sample rate
-fs = setup 
+fs = setup() 
 
 % specify the output and input channels in cell array
+% {playchans, recchans}
 chan_config = {[1],[1 2]}
 
 % define the desired settings

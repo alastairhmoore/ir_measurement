@@ -32,6 +32,8 @@ if ~isstruct(signal_opts) && isscalar(signal_opts)
             error('Unknown scalar preset for signal_opts')
     end
 end
+
+
 %finally check that signal_opts has required fields
 if ~isfield(signal_opts,'fcn_handle') || ~isfield(signal_opts,'settings')
     error('signal_opts must contain fields fcn_handle and settings')
@@ -79,11 +81,4 @@ if show_levels
     set(gca,'xticklabel',num2cell(recChan))
     xlabel('Input channel')
     ylabel('Maximum signal level [dBFS]')
-end
-    
-   
-function[out] = sine_tone(fs,pm)
-out = sin(2*pi*pm.frequency*[0:1/fs:pm.duration].');
-
-function[out] = white_noise(fs,pm)
-out = normalise(randn(round(pm.duration*fs),1));
+end    

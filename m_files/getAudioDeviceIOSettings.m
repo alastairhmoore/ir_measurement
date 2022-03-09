@@ -3,28 +3,39 @@ function[deviceConfig] = getAudioDeviceIOSettings(filepath)
 %
 % Order of precedence
 %   filepath
-%   AHM_IR_MEASUREMENT_ROOT/deviceConfig.mat
-%   deviceConfig.mat anywhere on path
+%   pwd/DeviceConfig.mat
+%   AHM_IR_MEASUREMENT_ROOT/DeviceConfig.mat
 
 
 %Default values are hard wired by loading DeviceConfig.mat.  It's values
 %are stored as fields in the deviceConfig structure
 
-if nargin && ~isempty(filepath)
-    config_path = filepath;
-elseif exist('AHM_IR_MEASUREMENT_ROOT','var')
-    config_path = fullfile(AHM_IR_MEASUREMENT_ROOT,'DeviceConfig.mat');
-else
-    config_path = 'DeviceConfig.mat';
+config_path = [];
+search_id = 0;
+while isempty(config_path) && search_id < 4
+    search_id=search_id+1;
+    switch search_id
+        case 1
+            if nargin < 1 
+                filepath = [];
+            end
+        case 2
+            filepath = fullfile(pwd,'DeviceConfig.mat');
+        case 3
+            filepath = fullfile(fileparts(mfilename()),'DeviceConfig.mat');
+    end
+    if ~isempty(filepath) && exist(filepath,'file')
+        config_path = filepath;
+    end
+end
+
+
+if isempty(config_path)
+    error('No device config file was found.\nChoose the devices to use by running "configureDevices"')
 end
 
 fprintf('Loading %s\n',config_path);
-
-if exist(config_path,'file')
-    load(config_path,'deviceConfig')
-else
-    error('No file at %s\nChoose the devices to use by running "configureDevices"',config_path)
-end
+load(config_path,'deviceConfig')
 
 % Sanity check
 % in liu of proper checking of specified device names
